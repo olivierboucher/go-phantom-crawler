@@ -86,8 +86,8 @@ func getAvailablePortNumber() (uint64, error) {
 	if err != nil {
 		return 0, err
 	}
-
-	port := strings.Split(ln.Addr().String(), ":")[strings.LastIndex(ln.Addr().String(), ":")-1]
+	addr := ln.Addr().String()
+	port := strings.Split(addr, ":")[strings.LastIndex(addr, ":")-1]
 	return strconv.ParseUint(port, 10, 16)
 }
 
