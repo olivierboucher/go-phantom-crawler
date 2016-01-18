@@ -8,24 +8,46 @@ import "strings"
 import "strconv"
 
 /*
+ClientJob represents the data structure sent to phantomjs
+*/
+type ClientJob struct {
+	URL string `json:"URL"`
+}
+
+/*
 ClientSettings provides a clean interface for phantomjs CLI arguments
 */
 type ClientSettings struct {
-	LoadImages bool
+	LoadImages      bool
+	IgnoreSSLErrors bool
 }
 
 /*
 ToStringArgs returns the settings in a []string form for os/exec compatibility
 */
-func (*ClientSettings) ToStringArgs() []string {
-	return []string{}
+func (c *ClientSettings) ToStringArgs() []string {
+	args := make([]string, 2, 2)
+
+	if c.LoadImages {
+		args[0] = "--load-images=true"
+	} else {
+		args[0] = "--load-images=false"
+	}
+
+	if c.IgnoreSSLErrors {
+		args[1] = "--ignore-ssl-errors=true"
+	} else {
+		args[1] = "--ignore-ssl-errors=false"
+	}
+
+	return args
 }
 
 /*
 DefaultSettings creates a new set of ClientSettings based on defaults
 */
 func DefaultSettings() *ClientSettings {
-	return &ClientSettings{false}
+	return &ClientSettings{false, true}
 }
 
 /*
