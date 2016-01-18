@@ -5,13 +5,35 @@ import "net"
 import "io"
 import "os/exec"
 import "strings"
+import "bytes"
 import "strconv"
+import "net/http"
+import "encoding/json"
+
+import "github.com/satori/go.uuid"
+
+/*
+ClientJobResult represents the data structure retrieved from phantomjs
+*/
+type ClientJobResult struct {
+	ID     string `json:"ID"`
+	URL    string `json:"URL"`
+	Result string `json:"result"`
+}
 
 /*
 ClientJob represents the data structure sent to phantomjs
 */
 type ClientJob struct {
+	ID  string `json:"ID"`
 	URL string `json:"URL"`
+}
+
+/*
+NewJob creates a new crawling job data structure
+*/
+func NewJob(url string) *ClientJob {
+	return &ClientJob{uuid.NewV4().String(), url}
 }
 
 /*
@@ -54,10 +76,11 @@ func DefaultSettings() *ClientSettings {
 Client provides interprocess communication with a custom phantomjs script.
 */
 type Client struct {
-	Server *exec.Cmd
-	Port   uint64
-	Out    io.ReadCloser
-	ErrOut io.ReadCloser
+	Server        *exec.Cmd
+	Port          uint64
+	CompletedJobs chan *ClientJobResult
+	StdOut        io.ReadCloser
+	StdErr        io.ReadCloser
 }
 
 /*
@@ -65,6 +88,24 @@ Close kills the underlying phantomjs process.
 */
 func (c *Client) Close() {
 	c.Server.Process.Kill()
+}
+
+/*
+QueueJob sends a job to the phantomjs process.
+The result will be available through the Client's CompletedJobs channel.
+*/
+func (c *Client) QueueJob(job ClientJob) {
+	go func(job ClientJob, client *Client) {
+		data, _ := json.Marshal(job)
+		buffer := bytes.NewBuffer(data)
+		request, err := http.NewRequest("POST", fmt.Sprintf("127.0.0.1:%d", client.Port), buffer)
+
+		//NOTE(Olivier): Wip, get result back
+		if err != nil {
+			client.CompletedJobs <- &ClientJobResult{}
+		}
+
+	}(job, c)
 }
 
 /*
@@ -98,6 +139,7 @@ func NewClient(settings *ClientSettings) (*Client, error) {
 	return &Client{
 		cmd,
 		port,
+		make(chan *ClientJobResult),
 		outPipe,
 		errPipe,
 	}, nil
