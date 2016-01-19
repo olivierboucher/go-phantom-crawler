@@ -11,7 +11,6 @@ var PORT = args[1];
 console.log('Starting server on port ' + PORT);
 
 if(!server.listen(PORT, function(request, response) {
-  console.log('New request')
   //Minimal request validation
   if( request.method != 'POST' ||
       request.headers['Content-Type'] != 'application/json'){
@@ -22,15 +21,11 @@ if(!server.listen(PORT, function(request, response) {
     return
   }
 
-  console.log('About to parse post');
   var job = JSON.parse(request.post);
-
-  console.log('Creating page element');
   var page = webPage.create();
 
   console.log('Loading url: ' + job.URL);
   page.open(job.URL, function(status){
-    console.log('Got result from opening');
     if(status !== 'success') {
       console.log('Could not open url')
       response.statusCode = 500;
@@ -38,7 +33,6 @@ if(!server.listen(PORT, function(request, response) {
       response.close();
       return
     }
-    console.log('Success !')
     job['Result'] = page.content;
     response.statusCode = 200;
     response.setHeader('Content-Type', 'application/json')
