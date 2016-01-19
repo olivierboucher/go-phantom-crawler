@@ -146,7 +146,7 @@ func NewClient(settings *ClientSettings) (*Client, error) {
 		err     error
 	)
 
-	port = 1337
+	port, _ = getAvailablePortNumber()
 
 	cmd := exec.Command("phantomjs", "phantom.js", strconv.FormatUint(port, 10))
 	cmd.Args = append(cmd.Args, settings.ToStringArgs()...)
@@ -173,11 +173,19 @@ func NewClient(settings *ClientSettings) (*Client, error) {
 }
 
 func getAvailablePortNumber() (uint64, error) {
-	ln, err := net.Listen("tcp", ":0")
-	if err != nil {
+	var (
+		ln  net.Listener
+		err error
+	)
+
+	if ln, err = net.Listen("tcp", ":0"); err != nil {
 		return 0, err
 	}
+
 	addr := ln.Addr().String()
+
+	ln.Close()
+
 	port := strings.Split(addr, ":")[strings.LastIndex(addr, ":")-1]
 	return strconv.ParseUint(port, 10, 16)
 }
