@@ -102,34 +102,33 @@ func (c *Client) QueueJob(job ClientJob) {
 		data, _ := json.Marshal(job)
 		buffer := bytes.NewBuffer(data)
 		url := fmt.Sprintf("http://127.0.0.1:%d", client.Port)
-		fmt.Println("URL: " + url)
-		request, err := http.NewRequest("POST", url, buffer)
 
-		if err != nil {
+		var (
+			request   *http.Request
+			response  *http.Response
+			jobResult ClientJobResult
+			err       error
+		)
+
+		if request, err = http.NewRequest("POST", url, buffer); err != nil {
 			panic("Could not create HTTP request")
 		}
 
 		request.Header.Set("Content-Type", "application/json")
 
-		fmt.Println("About to send the request")
-		response, err := http.DefaultClient.Do(request)
-		fmt.Println("Got the response back")
-
-		if err != nil {
+		if response, err = http.DefaultClient.Do(request); err != nil {
 			fmt.Printf("ERROR: %s\n", err.Error())
 			panic("Could not get a response from phantomjs")
 		}
 
 		defer response.Body.Close()
-		fmt.Printf("Got response from phantomjs")
 
 		decoder := json.NewDecoder(response.Body)
-		var jobResult ClientJobResult
-		err = decoder.Decode(&jobResult)
 
-		if err != nil {
+		if err = decoder.Decode(&jobResult); err != nil {
 			panic("Could not unmarshal response body")
 		}
+
 		fmt.Printf("Completed job #%s.\nResult: %s\n", jobResult.ID, jobResult.Result)
 		client.CompletedJobs <- jobResult
 
@@ -140,30 +139,27 @@ func (c *Client) QueueJob(job ClientJob) {
 NewClient creates a new phantomjs subprocess and return a Client for querying.
 */
 func NewClient(settings *ClientSettings) (*Client, error) {
-	/*port, err := getAvailablePortNumber()
-	if err != nil {
-		return nil, err
-	}*/
+	var (
+		port    uint64
+		outPipe io.ReadCloser
+		errPipe io.ReadCloser
+		err     error
+	)
 
-	var port uint64
 	port = 1337
 
 	cmd := exec.Command("phantomjs", "phantom.js", strconv.FormatUint(port, 10))
 	cmd.Args = append(cmd.Args, settings.ToStringArgs()...)
 
-	outPipe, err := cmd.StdoutPipe()
-	if err != nil {
+	if outPipe, err = cmd.StdoutPipe(); err != nil {
 		return nil, err
 	}
 
-	errPipe, err := cmd.StderrPipe()
-	if err != nil {
+	if errPipe, err = cmd.StderrPipe(); err != nil {
 		return nil, err
 	}
 
-	err = cmd.Start()
-
-	if err != nil {
+	if err = cmd.Start(); err != nil {
 		return nil, err
 	}
 
