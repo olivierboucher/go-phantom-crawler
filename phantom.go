@@ -3,6 +3,9 @@ package main
 import "fmt"
 import "net"
 import "io"
+import "bufio"
+
+import "time"
 import "os/exec"
 import "strings"
 import "bytes"
@@ -78,7 +81,7 @@ Client provides interprocess communication with a custom phantomjs script.
 type Client struct {
 	Server        *exec.Cmd
 	Port          uint64
-	CompletedJobs chan *ClientJobResult
+	CompletedJobs chan ClientJobResult
 	StdOut        io.ReadCloser
 	StdErr        io.ReadCloser
 }
@@ -98,12 +101,35 @@ func (c *Client) QueueJob(job ClientJob) {
 	go func(job ClientJob, client *Client) {
 		data, _ := json.Marshal(job)
 		buffer := bytes.NewBuffer(data)
-		request, err := http.NewRequest("POST", fmt.Sprintf("127.0.0.1:%d", client.Port), buffer)
+		request, err := http.NewRequest("POST", fmt.Sprintf("http://127.0.0.1:%d", client.Port), buffer)
 
-		//NOTE(Olivier): Wip, get result back
 		if err != nil {
-			client.CompletedJobs <- &ClientJobResult{}
+			panic("Could not create HTTP request")
 		}
+
+		request.Header.Set("Content-Type", "application/json")
+
+		fmt.Println("About to send the request")
+		response, err := http.DefaultClient.Do(request)
+		fmt.Println("Got the response back")
+
+		if err != nil {
+			fmt.Printf("ERROR: %s\n", err.Error())
+			panic("Could not get a response from phantomjs")
+		}
+
+		defer response.Body.Close()
+		fmt.Printf("Got response from phantomjs")
+
+		decoder := json.NewDecoder(response.Body)
+		var jobResult ClientJobResult
+		err = decoder.Decode(&jobResult)
+
+		if err != nil {
+			panic("Could not unmarshal response body")
+		}
+		fmt.Printf("Completed job #%s.\nResult: %s\n", jobResult.ID, jobResult.Result)
+		client.CompletedJobs <- jobResult
 
 	}(job, c)
 }
@@ -139,7 +165,7 @@ func NewClient(settings *ClientSettings) (*Client, error) {
 	return &Client{
 		cmd,
 		port,
-		make(chan *ClientJobResult),
+		make(chan ClientJobResult),
 		outPipe,
 		errPipe,
 	}, nil
@@ -162,5 +188,33 @@ func main() {
 	}
 	defer client.Close()
 
-	fmt.Printf("PORT: %d\n", client.Port)
+	time.Sleep(3000 * time.Millisecond)
+
+	stdOut := bufio.NewScanner(client.StdOut)
+	stdErr := bufio.NewScanner(client.StdErr)
+
+	go func() {
+		fmt.Println("Starting to display Phantom std out")
+		for stdOut.Scan() {
+			line := stdOut.Text()
+			fmt.Printf("Phantom out > %s\n", line)
+		}
+		fmt.Println("Stoping to display Phantom std out")
+	}()
+
+	go func() {
+		fmt.Println("Starting to display Phantom std err")
+		for stdErr.Scan() {
+			line := stdErr.Text()
+			fmt.Printf("Phantom err > %s\n", line)
+		}
+		fmt.Println("Stopping to display Phantom std err")
+	}()
+
+	job := NewJob("http://google.ca")
+	client.QueueJob(*job)
+
+	resp := <-client.CompletedJobs
+
+	fmt.Printf("BODY: %s\n", resp.Result)
 }
