@@ -101,7 +101,9 @@ func (c *Client) QueueJob(job ClientJob) {
 	go func(job ClientJob, client *Client) {
 		data, _ := json.Marshal(job)
 		buffer := bytes.NewBuffer(data)
-		request, err := http.NewRequest("POST", fmt.Sprintf("http://127.0.0.1:%d", client.Port), buffer)
+		url := fmt.Sprintf("http://127.0.0.1:%d", client.Port)
+		fmt.Println("URL: " + url)
+		request, err := http.NewRequest("POST", url, buffer)
 
 		if err != nil {
 			panic("Could not create HTTP request")
@@ -138,10 +140,13 @@ func (c *Client) QueueJob(job ClientJob) {
 NewClient creates a new phantomjs subprocess and return a Client for querying.
 */
 func NewClient(settings *ClientSettings) (*Client, error) {
-	port, err := getAvailablePortNumber()
+	/*port, err := getAvailablePortNumber()
 	if err != nil {
 		return nil, err
-	}
+	}*/
+
+	var port uint64
+	port = 1337
 
 	cmd := exec.Command("phantomjs", "phantom.js", strconv.FormatUint(port, 10))
 	cmd.Args = append(cmd.Args, settings.ToStringArgs()...)
@@ -209,6 +214,11 @@ func main() {
 			fmt.Printf("Phantom err > %s\n", line)
 		}
 		fmt.Println("Stopping to display Phantom std err")
+	}()
+
+	go func() {
+		err := client.Server.Wait()
+		fmt.Printf("Phantomjs process finished: %v\n", err)
 	}()
 
 	job := NewJob("http://google.ca")

@@ -10,7 +10,7 @@ if(args.length === 1) {
 var PORT = args[1];
 console.log('Starting server on port ' + PORT);
 
-var service = server.listen(PORT, function(request, response) {
+if(!server.listen(PORT, function(request, response) {
   console.log('New request')
   //Minimal request validation
   if( request.method != 'POST' ||
@@ -45,4 +45,7 @@ var service = server.listen(PORT, function(request, response) {
     response.write(JSON.stringify(job));
     response.close();
   });
-});
+})) {
+  console.log('Error starting server');
+  phantom.exit(1);
+}
